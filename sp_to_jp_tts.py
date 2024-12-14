@@ -78,7 +78,7 @@ async def main():
         print("No note fields retrieved!")
         return
 
-    for i, note in enumerate(notes):
+    for i, note in enumerate(notes, start=1):
         note_id = note["noteId"]
 
         # Check if the FIELD_TO_GENERATE exists
@@ -92,8 +92,11 @@ async def main():
             print(f"Skipping empty text for note {note_id}")
             continue
 
+        # Log the text being TTS'd
+        print(f"TTS Text for note {note_id}: {text}")
+
         # Generate unique audio file for each note
-        audio_file = f"japanese_tts_{i + 1}.mp3"
+        audio_file = f"spanish_sentences_turned_nihonjin_{i}.mp3"
         audio_path = os.path.join(OUTPUT_DIR, audio_file)
         await generate_tts(text, audio_path)
         print(f"Generated audio: {audio_path}")
