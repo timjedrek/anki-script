@@ -7,26 +7,33 @@ TAG_NAME = "spanish_7500sentences"  # Change to the tag you're using
 
 def get_notes_by_tag(tag_name):
     """Fetch notes with the specified tag."""
+    print(f"Fetching notes with tag: {tag_name}...")
     payload = {
         "action": "findNotes",
         "version": 6,
         "params": {"query": f"tag:{tag_name}"}
     }
     response = requests.post(ANKI_CONNECT_URL, json=payload)
-    return response.json()["result"]
+    note_ids = response.json()["result"]
+    print(f"Found {len(note_ids)} notes.")
+    return note_ids
 
 def get_note_fields(note_ids):
     """Fetch note fields for each note ID."""
+    print(f"Fetching fields for {len(note_ids)} notes...")
     payload = {
         "action": "notesInfo",
         "version": 6,
         "params": {"notes": note_ids}
     }
     response = requests.post(ANKI_CONNECT_URL, json=payload)
-    return response.json()["result"]
+    notes = response.json()["result"]
+    print(f"Retrieved fields for {len(notes)} notes.")
+    return notes
 
 def update_note_field(note_id, japanese_text):
     """Update the Japanese field of a note."""
+    print(f"Updating note ID {note_id} with translation.")
     payload = {
         "action": "updateNoteFields",
         "version": 6,
@@ -43,8 +50,14 @@ def update_note_field(note_id, japanese_text):
 
 def translate_sentences(sentences):
     """Translate Spanish sentences to Japanese."""
+    print(f"Translating {len(sentences)} sentences...")
     translator = Translator()
-    translations = [translator.translate(sentence, src="es", dest="ja").text for sentence in sentences]
+    translations = []
+    for idx, sentence in enumerate(sentences, 1):
+        print(f"Translating sentence {idx}/{len(sentences)}: {sentence}")
+        translated_text = translator.translate(sentence, src="es", dest="ja").text
+        translations.append(translated_text)
+    print("Translation complete.")
     return translations
 
 def main():
@@ -56,12 +69,14 @@ def main():
     sentences_to_translate = []
     notes_to_update = []
 
+    print("Checking for notes with blank Japanese fields...")
     for note in notes:
         sentence = note["fields"]["sentence"]["value"]
         japanese = note["fields"]["japanese"]["value"]
         if not japanese.strip():  # If the Japanese field is blank
             sentences_to_translate.append(sentence)
             notes_to_update.append(note["noteId"])
+    print(f"Found {len(sentences_to_translate)} notes to translate.")
 
     # Step 3: Translate Spanish sentences to Japanese
     japanese_translations = translate_sentences(sentences_to_translate)
