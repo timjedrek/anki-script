@@ -88,8 +88,22 @@ async def main():
 
         text = note["fields"][FIELD_TO_GENERATE]["value"]  # Text to generate TTS for
 
+        # If the field is empty, prompt the user
+        while not text.strip():
+            print(f"The 'japanese' field for note {note_id} is empty.")
+            user_input = input("Retry (r) or Skip (s)? ").strip().lower()
+            if user_input == "s":
+                print(f"Skipping note {note_id}.")
+                break
+            elif user_input == "r":
+                # Retry fetching the note
+                note = get_note_fields([note_id])[0]
+                text = note["fields"][FIELD_TO_GENERATE]["value"]
+            else:
+                print("Invalid input. Please enter 'r' to retry or 's' to skip.")
+
+        # Skip if the user chose to skip
         if not text.strip():
-            print(f"Skipping empty text for note {note_id}")
             continue
 
         # Log the text being TTS'd
