@@ -31,7 +31,7 @@ def get_note_fields(note_id):
 
 def update_note_field(note_id, japanese_text):
     """Update the Japanese field of a note."""
-    print(f"Updating note ID {note_id} with translation.")
+    print(f"Updating note ID {note_id} with translation: {japanese_text}")
     payload = {
         "action": "updateNoteFields",
         "version": 6,
@@ -51,7 +51,9 @@ def translate_sentence(sentence):
     translator = Translator()
     try:
         print(f"Translating: {sentence}")
-        return translator.translate(sentence, src="es", dest="ja").text
+        translation = translator.translate(sentence, src="es", dest="ja").text
+        print(f"Translation result: {translation}")
+        return translation
     except Exception as e:
         print(f"Error translating sentence: {sentence}. Error: {e}")
         return None
