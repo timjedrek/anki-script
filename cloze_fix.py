@@ -1,8 +1,9 @@
 import requests
+import re
 
 # Constants
 ANKI_CONNECT_URL = "http://localhost:8765"  # AnkiConnect URL
-TAG_TO_FIX = "cloze_fix"  # Tag to filter cards
+TAG_TO_FIX = "spanish_sbs_ch1_1.4"  # Correct tag for filtering
 FIELD_TO_FIX = "Text"  # Field containing the cloze
 FIXED_BRACKET = "{{{0}}}"  # Proper cloze format
 
@@ -27,10 +28,9 @@ def get_note_info(note_ids):
     return response.get("result", [])
 
 def fix_cloze_field(text):
-    """Ensure the cloze field has proper brackets {{ and }}."""
-    import re
-    # Search for broken cloze deletions
-    fixed_text = re.sub(r"{c(\d+)::(.*?)}", r"{{c\1::\2}}", text)
+    """Fix cloze deletions where the closing curly brace is missing."""
+    # Find cloze patterns where the last curly brace is missing
+    fixed_text = re.sub(r"{{c(\d+)::(.*?)}(?!})", r"{{c\1::\2}}", text)
     return fixed_text
 
 def update_note_field(note_id, updated_text):
@@ -51,7 +51,7 @@ def update_note_field(note_id, updated_text):
     return response.get("error")
 
 def main():
-    print("Fetching notes tagged with cloze_fix...")
+    print(f"Fetching notes tagged with '{TAG_TO_FIX}'...")
     note_ids = find_notes_by_tag(TAG_TO_FIX)
     if not note_ids:
         print("No notes found with the specified tag.")
