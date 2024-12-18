@@ -9,7 +9,7 @@ OUTPUT_DIR = "audio_files"  # Local directory to save generated audio files
 VOICE = "es-ES-AlvaroNeural"  # Spanish male voice
 RATE = "-10%"  # Speech rate
 PITCH = "-10Hz"  # Speech pitch
-TAG = "spanish_sbs_ch1_1.4"  # Filter notes by this tag
+TAG = "spanish_sbs_ch1_1.6"  # Filter notes by this tag
 FIELD_TO_GENERATE = "Sound"  # Field with text to generate audio for
 FIELD_TO_UPDATE = "Sound"  # Field to update with [sound:filename.mp3]
 
