@@ -1,14 +1,14 @@
-cat << 'EOF' > convert_anki.py
 import json
 import urllib.request
-import opencc
+from opencc import OpenCC # CHANGED IMPORT
+from opencc import config as opencc_config # ADDED IMPORT
 import sys
 
 # --- CONFIGURATION ---
 TAG_TO_SEARCH = "Chinese_Shared_Deck"
 SOURCE_FIELD = "Hanzi"
 TARGET_FIELD = "Traditional"
-CONVERTER_CONFIG = 's2twp.json' 
+# Using the internal constant instead of the string 's2twp.json'
 ANKI_CONNECT_URL = 'http://127.0.0.1:8765'
 
 def invoke(action, **params):
@@ -30,9 +30,16 @@ def invoke(action, **params):
 def main():
     print("--- Anki Simplified to Taiwan Traditional Converter ---")
     
-    print(f"Loading OpenCC with config '{CONVERTER_CONFIG}'...")
-    converter = opencc.OpenCC(CONVERTER_CONFIG)
+    # 1. Initialize OpenCC using the constant value
+    print("Loading OpenCC with config 's2twp' (Simplified to Taiwan with phrases)...")
+    try:
+        # CONVERSION: Use the constant for reliable file loading
+        converter = OpenCC(opencc_config.s2twp) 
+    except Exception as e:
+        print(f"[Error] Failed to initialize OpenCC: {e}")
+        sys.exit(1)
     
+    # 2. Find Notes
     print(f"Searching for notes with tag: {TAG_TO_SEARCH}...")
     try:
         note_ids = invoke('findNotes', query=f'tag:{TAG_TO_SEARCH}')
@@ -60,7 +67,6 @@ def main():
             note_id = note['noteId']
             
             if SOURCE_FIELD not in fields:
-                # print(f"\n[Warning] Note {note_id} missing source field '{SOURCE_FIELD}'. Skipping.")
                 skipped_count += 1
                 continue
             
@@ -93,4 +99,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-EOF
