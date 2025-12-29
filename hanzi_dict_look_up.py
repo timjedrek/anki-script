@@ -1,5 +1,5 @@
 # hanzi_dict_look_up.py
-# Final version with dictionary_search for real multi-char compounds + tone mark conversion
+# Overwrite mode: updates ALL cards with improved full definitions
 
 import requests
 import re
@@ -12,14 +12,13 @@ HANZI_FIELD = "Hanzi"
 TARGET_FIELD = "PyScriptLookUp"
 ANKICONNECT_URL = "http://localhost:8765"
 
-TEST_MODE = False          # ← Set to False for full run
+TEST_MODE = False          # ← Set to False to overwrite ALL 8142 cards
 REQUEST_TIMEOUT = 60
 MAX_RETRIES = 3
 # -----------------------------------------------------------
 
 dictionary = HanziDictionary()
 
-# Pure Python numbered pinyin to tone marks converter
 def convert_to_tone_marks(pinyin_str):
     if not pinyin_str:
         return "N/A"
@@ -41,7 +40,6 @@ def convert_to_tone_marks(pinyin_str):
         if tone == '0' or tone == '5':
             result.append(base)
             continue
-        pos = -1
         marked_vowel = base
         for v in vowel_order:
             if v in base:
@@ -86,11 +84,11 @@ def generate_breakdown(text):
     
     parts = []
     for i, char in enumerate(unique_hanzi):
-        # Single char pinyin with tone marks
+        # Single char pinyin
         pinyins_num = dictionary.get_pinyin(char)
         pinyin_str = " / ".join(convert_to_tone_marks(py) for py in pinyins_num) if pinyins_num else "N/A"
         
-        # Primary definition
+        # Primary definition (full first English)
         entries = dictionary.definition_lookup(char)
         def_str = "no entry"
         if entries:
@@ -104,10 +102,10 @@ def generate_breakdown(text):
         parts.append(f'<span class="pinyin">({pinyin_str})</span>')
         parts.append(f'<span class="def">{def_str}</span>')
         
-        # Multi-char compounds via dictionary_search
+        # Multi-char compounds
         search_results = dictionary.dictionary_search(char)
         compounds = [e for e in search_results if len(e['simplified']) > 1]
-        compounds.sort(key=lambda e: len(e['simplified']))  # shorter = more common
+        compounds.sort(key=lambda e: len(e['simplified']))
         top_compounds = compounds[:3]
         
         if top_compounds:
@@ -118,8 +116,8 @@ def generate_breakdown(text):
                 toned_py = convert_to_tone_marks(numbered_py)
                 full_eng = e.get('english', '') or e.get('definition', '')
                 cleaned = re.sub(r'\[.*?\]', '', full_eng)
-                short_meaning = re.split(r'[/;]', cleaned)[0].strip().split()[0].capitalize() if cleaned else "common"
-                parts.append(f'<div class="example">• {word} ({toned_py}): {short_meaning}</div>')
+                full_meaning = re.split(r'[/;]', cleaned)[0].strip() if cleaned else "common usage"
+                parts.append(f'<div class="example">• {word} ({toned_py}): {full_meaning}</div>')
         
         parts.append('</div>')
         
@@ -129,10 +127,10 @@ def generate_breakdown(text):
     return "\n".join(parts)
 
 def main():
-    print("Starting character breakdown fill (dictionary_search + tone marks)...")
+    print("Starting OVERWRITE character breakdown fill (full definitions)...")
     print(f"Tag: {TAG} | Source: {HANZI_FIELD} → Target: {TARGET_FIELD}")
     if TEST_MODE:
-        print("🧪 TEST MODE ACTIVE: Updating only the FIRST note")
+        print("🧪 TEST MODE ACTIVE: Overwriting only the FIRST note")
     print("-" * 60)
     
     try:
@@ -142,10 +140,10 @@ def main():
         return
     
     if not note_ids:
-        print("No notes found with the tag")
+        print("No notes found")
         return
     
-    print(f"Found {len(note_ids)} notes")
+    print(f"Found {len(note_ids)} notes — will overwrite all")
     
     if TEST_MODE:
         note_ids = note_ids[:1]
@@ -167,15 +165,10 @@ def main():
             print(f"Note {note_id}: empty Hanzi → skip")
             continue
         
-        if fields.get(TARGET_FIELD, {}).get("value", "").strip():
-            print(f"Note {note_id}: already filled → skip")
-            continue
-        
-        print(f"Note {note_id}: Generating for \"{hanzi_text}\"")
+        print(f"Overwriting note {note_id}: \"{hanzi_text}\"")
         
         html = generate_breakdown(hanzi_text)
         if not html:
-            print("  No content generated")
             continue
         
         update_payload = {
@@ -185,15 +178,14 @@ def main():
             }
         }
         
-        print(f"Updating note {note_id}...")
         try:
             invoke("updateNoteFields", **update_payload)
-            print(f"✅ Successfully updated note {note_id}")
+            print(f"✅ Overwritten")
             updated += 1
         except Exception as e:
-            print(f"❌ Update failed: {e}")
+            print(f"❌ Failed: {e}")
     
-    print(f"Done! {updated} note(s) updated. Check your test card — real multi-char compounds now!")
+    print(f"Done! Overwrote {updated} notes with improved full definitions.")
 
 if __name__ == "__main__":
     main()
