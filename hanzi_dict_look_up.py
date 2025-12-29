@@ -12,7 +12,7 @@ HANZI_FIELD = "Hanzi"
 TARGET_FIELD = "PyScriptLookUp"
 ANKICONNECT_URL = "http://localhost:8765"
 
-TEST_MODE = True          # ← Set to False for full run
+TEST_MODE = False          # ← Set to False for full run
 REQUEST_TIMEOUT = 60
 MAX_RETRIES = 3
 # -----------------------------------------------------------
