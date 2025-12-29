@@ -1,6 +1,6 @@
 # hanzi_dict_look_up.py
-# Run this script to fill the "PyScriptLookUp" field for all notes tagged "Chinese_Shared_Deck"
-# Requires Anki to be running with AnkiConnect addon installed (default port 8765)
+# Enhanced version with detailed terminal logging for debugging 8000+ notes
+# Shows progress, skips, successes, and any errors per note
 
 import requests
 import json
@@ -17,17 +17,22 @@ ANKICONNECT_URL = "http://localhost:8765"
 dictionary = HanziDictionary()
 
 def invoke(action, **params):
-    """Helper to talk to AnkiConnect"""
     payload = {"action": action, "version": 6, "params": params}
-    response = requests.post(ANKICONNECT_URL, json=payload).json()
-    if response.get("error") is not None:
-        raise Exception(response["error"])
-    return response["result"]
+    try:
+        response = requests.post(ANKICONNECT_URL, json=payload, timeout=10)
+        response.raise_for_status()
+        result = response.json()
+        if result.get("error") is not None:
+            raise Exception(result["error"])
+        return result["result"]
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"AnkiConnect request failed: {e}")
+    except Exception as e:
+        raise Exception(f"AnkiConnect error: {e}")
 
 def get_one_word_meaning(full_def):
     if not full_def:
         return "N/A"
-    # Take the first English part before '/' or ';', then the first word
     part = re.split(r'[/;]', full_def)[0].strip()
     words = part.split()
     return words[0].capitalize() if words else "N/A"
@@ -36,7 +41,6 @@ def generate_breakdown(text):
     if not text:
         return ""
     
-    # Unique hanzi in order of appearance
     hanzi_list = re.findall(r'[\u4e00-\u9fff]', text)
     unique_hanzi = []
     seen = set()
@@ -47,90 +51,125 @@ def generate_breakdown(text):
     
     parts = []
     for i, char in enumerate(unique_hanzi):
-        # Pinyin with tone marks
-        pinyins = dictionary.get_pinyin(char, tone_marks=True)
-        pinyin_str = " / ".join(pinyins) if pinyins else "N/A"
-        
-        # Primary definition
-        entries = dictionary.definition_lookup(char)
-        def_str = "no entry"
-        if entries and entries[0].get('english'):
-            full_def = entries[0]['english']
-            def_str = re.split(r'[/;]', full_def)[0].strip()
+        try:
+            pinyins = dictionary.get_pinyin(char, tone_marks=True)
+            pinyin_str = " / ".join(pinyins) if pinyins else "N/A"
+            
+            entries = dictionary.definition_lookup(char)
+            def_str = "no entry"
+            if entries and entries[0].get('english'):
+                full_def = entries[0]['english']
+                def_str = re.split(r'[/;]', full_def)[0].strip()
+        except Exception as e:
+            print(f"  ⚠️  Dictionary lookup failed for '{char}': {e}")
+            pinyin_str = "ERROR"
+            def_str = "lookup failed"
         
         parts.append('<div class="char-block">')
         parts.append(f'<span class="bigchar">{char}</span>')
         parts.append(f'<span class="pinyin">({pinyin_str})</span>')
         parts.append(f'<span class="def">{def_str}</span>')
         
-        # Example words (up to 3 high-frequency)
-        examples = dictionary.get_examples(char)
-        high_freq = examples.get('high_frequency', [])[:3]
-        if high_freq:
-            parts.append('<span class="ex-label">Common words:</span>')
-            for ex in high_freq:
-                word = ex.get('simplified', 'N/A')
-                ex_py_list = ex.get('pinyin_list', ['N/A'])
-                ex_py = " / ".join(ex_py_list)
-                ex_def_short = get_one_word_meaning(ex.get('english', ''))
-                parts.append(f'<div class="example">• {word} ({ex_py}): {ex_def_short}</div>')
+        try:
+            examples = dictionary.get_examples(char)
+            high_freq = examples.get('high_frequency', [])[:3]
+            if high_freq:
+                parts.append('<span class="ex-label">Common words:</span>')
+                for ex in high_freq:
+                    word = ex.get('simplified', 'N/A')
+                    ex_py_list = ex.get('pinyin_list', ['N/A'])
+                    ex_py = " / ".join(ex_py_list)
+                    ex_def_short = get_one_word_meaning(ex.get('english', ''))
+                    parts.append(f'<div class="example">• {word} ({ex_py}): {ex_def_short}</div>')
+        except Exception as e:
+            print(f"  ⚠️  Examples lookup failed for '{char}': {e}")
         
         parts.append('</div>')
         
-        # Separator except after the last character
         if i < len(unique_hanzi) - 1:
             parts.append('<hr class="sep">')
     
     return "\n".join(parts)
 
 def main():
-    # Find all note IDs with the tag
-    note_ids = invoke("findNotes", query=f'tag:{TAG}')
+    print("Starting character breakdown fill via AnkiConnect...")
+    print(f"Looking for notes with tag: {TAG}")
+    print(f"Source field: {HANZI_FIELD} → Target field: {TARGET_FIELD}")
+    print("-" * 60)
+    
+    try:
+        note_ids = invoke("findNotes", query=f'tag:{TAG}')
+    except Exception as e:
+        print(f"❌ Failed to find notes: {e}")
+        print("Make sure Anki is open and AnkiConnect is running.")
+        return
     
     if not note_ids:
         print(f"No notes found with tag '{TAG}'")
         return
     
-    # Get note info (fields)
-    notes_info = invoke("notesInfo", notes=note_ids)
+    print(f"Found {len(note_ids)} notes with the tag.")
+    
+    try:
+        notes_info = invoke("notesInfo", notes=note_ids)
+    except Exception as e:
+        print(f"❌ Failed to retrieve note info: {e}")
+        return
     
     updates = []
     processed = 0
+    skipped = 0
+    errors = 0
     
-    for info in notes_info:
+    for i, info in enumerate(notes_info, 1):
+        note_id = info["noteId"]
         fields = info["fields"]
         
-        # Skip if target field already has content
+        print(f"[{i}/{len(notes_info)}] Processing note ID {note_id}...", end=" ")
+        
+        # Skip if already filled
         if fields.get(TARGET_FIELD, {}).get("value", "").strip():
+            print("⏭️  skipped (already filled)")
+            skipped += 1
             continue
         
-        # Get the sentence
         hanzi_text = fields.get(HANZI_FIELD, {}).get("value", "")
-        if not hanzi_text:
+        if not hanzi_text.strip():
+            print("⚠️  skipped (empty Hanzi field)")
+            skipped += 1
             continue
         
-        html = generate_breakdown(hanzi_text)
-        if not html:
-            continue
+        print(f"generating for: \"{hanzi_text}\"")
         
-        updates.append({
-            "noteId": info["noteId"],
-            "fields": {
-                TARGET_FIELD: {"value": html}
-            }
-        })
-        processed += 1
+        try:
+            html = generate_breakdown(hanzi_text)
+            if not html:
+                print("  ⚠️  No content generated")
+                skipped += 1
+                continue
+            
+            updates.append({
+                "noteId": note_id,
+                "fields": {TARGET_FIELD: {"value": html}}
+            })
+            processed += 1
+        except Exception as e:
+            print(f"  ❌ Error generating breakdown: {e}")
+            errors += 1
     
     # Batch update
     if updates:
-        invoke("updateNoteFields", notes=updates)
-        print(f"Successfully filled {len(updates)} notes ({processed} processed total).")
+        try:
+            invoke("updateNoteFields", notes=updates)
+            print("-" * 60)
+            print(f"✅ Successfully updated {len(updates)} notes!")
+        except Exception as e:
+            print(f"❌ Failed to update notes in Anki: {e}")
     else:
-        print("No new notes needed updating.")
+        print("-" * 60)
+        print("No updates needed.")
+    
+    print(f"Summary: {processed} filled | {skipped} skipped | {errors} errors")
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        print(f"Error: {e}")
-        print("Make sure Anki is open and AnkiConnect is running.")
+    main()
