@@ -1,5 +1,5 @@
 # hanzi_dict_look_up.py
-# Overwrite mode: updates ALL cards with improved full definitions
+# Overwrite mode with progress counter in terminal
 
 import requests
 import re
@@ -12,7 +12,7 @@ HANZI_FIELD = "Hanzi"
 TARGET_FIELD = "PyScriptLookUp"
 ANKICONNECT_URL = "http://localhost:8765"
 
-TEST_MODE = False          # ← Set to False to overwrite ALL 8142 cards
+TEST_MODE = False         # Set to True if you want to test on just the first card
 REQUEST_TIMEOUT = 60
 MAX_RETRIES = 3
 # -----------------------------------------------------------
@@ -84,11 +84,9 @@ def generate_breakdown(text):
     
     parts = []
     for i, char in enumerate(unique_hanzi):
-        # Single char pinyin
         pinyins_num = dictionary.get_pinyin(char)
         pinyin_str = " / ".join(convert_to_tone_marks(py) for py in pinyins_num) if pinyins_num else "N/A"
         
-        # Primary definition (full first English)
         entries = dictionary.definition_lookup(char)
         def_str = "no entry"
         if entries:
@@ -102,7 +100,6 @@ def generate_breakdown(text):
         parts.append(f'<span class="pinyin">({pinyin_str})</span>')
         parts.append(f'<span class="def">{def_str}</span>')
         
-        # Multi-char compounds
         search_results = dictionary.dictionary_search(char)
         compounds = [e for e in search_results if len(e['simplified']) > 1]
         compounds.sort(key=lambda e: len(e['simplified']))
@@ -127,10 +124,10 @@ def generate_breakdown(text):
     return "\n".join(parts)
 
 def main():
-    print("Starting OVERWRITE character breakdown fill (full definitions)...")
+    print("Starting OVERWRITE of all character breakdowns (full definitions)...")
     print(f"Tag: {TAG} | Source: {HANZI_FIELD} → Target: {TARGET_FIELD}")
     if TEST_MODE:
-        print("🧪 TEST MODE ACTIVE: Overwriting only the FIRST note")
+        print("🧪 TEST MODE ACTIVE: Only overwriting the first note")
     print("-" * 60)
     
     try:
@@ -143,11 +140,11 @@ def main():
         print("No notes found")
         return
     
-    print(f"Found {len(note_ids)} notes — will overwrite all")
+    total_notes = len(note_ids)
+    print(f"Found {total_notes} notes — overwriting all with improved version\n")
     
     if TEST_MODE:
         note_ids = note_ids[:1]
-        print(f"🧪 Processing only note ID: {note_ids[0]}")
     
     try:
         notes_info = invoke("notesInfo", notes=note_ids)
@@ -156,19 +153,20 @@ def main():
         return
     
     updated = 0
-    for info in notes_info:
+    for idx, info in enumerate(notes_info, 1):
         fields = info["fields"]
         note_id = info["noteId"]
-        
         hanzi_text = fields.get(HANZI_FIELD, {}).get("value", "").strip()
+        
         if not hanzi_text:
-            print(f"Note {note_id}: empty Hanzi → skip")
+            print(f"[{idx}/{total_notes}] Note {note_id}: empty Hanzi → skipping")
             continue
         
-        print(f"Overwriting note {note_id}: \"{hanzi_text}\"")
+        print(f"[{idx}/{total_notes}] Overwriting note {note_id}: \"{hanzi_text}\"", end=" ")
         
         html = generate_breakdown(hanzi_text)
         if not html:
+            print("→ no content")
             continue
         
         update_payload = {
@@ -180,12 +178,12 @@ def main():
         
         try:
             invoke("updateNoteFields", **update_payload)
-            print(f"✅ Overwritten")
+            print("✅")
             updated += 1
         except Exception as e:
             print(f"❌ Failed: {e}")
     
-    print(f"Done! Overwrote {updated} notes with improved full definitions.")
+    print(f"\nDone! Successfully overwrote {updated}/{total_notes} notes with full definitions.")
 
 if __name__ == "__main__":
     main()
