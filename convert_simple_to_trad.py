@@ -1,15 +1,15 @@
 import json
 import urllib.request
-from opencc import OpenCC # CHANGED IMPORT
-from opencc import config as opencc_config # ADDED IMPORT
+import opencc # Revert to simple import
 import sys
 
 # --- CONFIGURATION ---
 TAG_TO_SEARCH = "Chinese_Shared_Deck"
 SOURCE_FIELD = "Hanzi"
 TARGET_FIELD = "Traditional"
-# Using the internal constant instead of the string 's2twp.json'
-ANKI_CONNECT_URL = 'http://127.0.0.1:8765'
+# FINAL FIX: Use the base config name string 's2twp' without the .json extension
+CONVERTER_CONFIG = 's2twp' 
+ANKI_CONNECT_URL = 'http://127.0.0.01:8765'
 
 def invoke(action, **params):
     requestJson = json.dumps({'action': action, 'params': params, 'version': 6}).encode('utf-8')
@@ -30,11 +30,11 @@ def invoke(action, **params):
 def main():
     print("--- Anki Simplified to Taiwan Traditional Converter ---")
     
-    # 1. Initialize OpenCC using the constant value
-    print("Loading OpenCC with config 's2twp' (Simplified to Taiwan with phrases)...")
+    # 1. Initialize OpenCC 
+    print(f"Loading OpenCC with config '{CONVERTER_CONFIG}' (Simplified to Taiwan with phrases)...")
     try:
-        # CONVERSION: Use the constant for reliable file loading
-        converter = OpenCC(opencc_config.s2twp) 
+        # Use the simple string to initialize the converter
+        converter = opencc.OpenCC(CONVERTER_CONFIG) 
     except Exception as e:
         print(f"[Error] Failed to initialize OpenCC: {e}")
         sys.exit(1)
